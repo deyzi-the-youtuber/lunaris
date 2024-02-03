@@ -1,7 +1,7 @@
 <h1 align=center>Lunaris</h1>
 <p align=center>The light of the moon</p>
 
-![image](https://github.com/deyzi-the-youtuber/lunaris/tree/main/assets/luna.svg)
+![image](https://github.com/deyzi-the-youtuber/lunaris/blob/main/assets/luna.svg)
 
 **What is Lunaris?**\
 Lunaris is a UNIX-like kernel that is written completely in C.\

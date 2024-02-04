@@ -136,8 +136,6 @@ void KernelMainStage2()
   register_devices();
   tty_init();
   keyboard_init();
-  // user mode is buggy, we stop at here
-  for(;;);
   /* prepare for user-mode */
   SetKernelStack(getCurrentProcess()->stack + 0x100000);
   /* at this point, we are ready for user mode. switch to it */

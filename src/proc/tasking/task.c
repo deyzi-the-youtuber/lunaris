@@ -254,7 +254,6 @@ void kill(Process * p)
 
 void preempt()
 {
-	SetKernelStack(CurrentProcess->esp);
 	InterruptsLock();
 	// push CurrentProcess process' registers on to its stack
 	asm volatile("push %eax");
@@ -278,7 +277,6 @@ void preempt()
 	// pop all of next process' registers off of its stack
 	asm volatile("mov %%eax, %%cr3" : : "a"(CurrentProcess->cr3));
 	asm volatile("mov %%eax, %%esp" : : "a"(CurrentProcess->esp));
-	SetKernelStack(CurrentProcess->esp);
 	asm volatile("pop %gs");
 	asm volatile("pop %fs");
 	asm volatile("pop %es");

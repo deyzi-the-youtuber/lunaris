@@ -83,8 +83,7 @@ void ExceptionHandlerISR(REGISTERS reg)
     else
     {
       DebugOutput("[EXCEPTION] Unhandled exception 0x%x\n", reg.int_no);
-      InterruptsLock();
-      for(;;);
+      PANIC("Unhandled exception 0x%x\n", reg.int_no);
     }
   }
   if (InterruptHandlers[reg.int_no] != NULL)

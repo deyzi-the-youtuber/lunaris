@@ -1,0 +1,3 @@
+[CMDLINE] root=/dev/sda
+[CMDLINE] Found cmdline entry: root=
+[CMDLINE] Root drive: /dev/sda

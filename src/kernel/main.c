@@ -28,6 +28,7 @@
 #include <kernel/printk.h>
 #include <kernel/fs/ext2.h>
 #include <kernel/fs/devfs.h>
+#include <kernel/sound/pcspk.h>
 
 struct multiboot_header_tag * tag;
 
@@ -140,8 +141,9 @@ void KernelMainStage2()
   SetKernelStack(getCurrentProcess()->stack + 0x100000);
   /* at this point, we are ready for user mode. switch to it */
   DebugOutput("[KERNEL] Kernel is switching to user-mode. Goodbye kernel-mode!\n");
-  DebugOutput("[KERNEL] Executing /init...\n");
-  printk("executing init...\n");
+  pc_speaker_beep(500);
+  timer_sleep_ms(100);
+  pc_speaker_stop();
   move_to_usermode();
   for(;;);
 }

@@ -83,7 +83,7 @@ pid_t sys_getpid()
 }
 
 int sys_write(int fd, char * buf, uint32_t count)
-{/*
+{
   device_node_t tty;
   tty = devfs_get_device_node(devfs_get_device_byname("tty0"));
   DebugOutput("[SYSCALL] sys_write (pid %d, fd %d, count %d)\n", getCurrentProcess()->pid, fd, count);
@@ -93,7 +93,7 @@ int sys_write(int fd, char * buf, uint32_t count)
     case 1:
       char * str = (char *)malloc(count + 1);
       memcpy(str, buf, count);
-      devfs_write((device_node_t *)&tty, str, strlen(str));
+      devfs_write(&tty, 0, strlen(str), str);
       free(str);
       break;
     case 2:
@@ -101,12 +101,11 @@ int sys_write(int fd, char * buf, uint32_t count)
     default:
       break;
   }
-  */
-  return -ENOSYS;
+  return 0;
 }
 
 int sys_read(int fd, char * buf, uint32_t count)
-{/*
+{
   device_node_t tty;
   tty = devfs_get_device_node(devfs_get_device_byname("tty0"));
   DebugOutput("[SYSCALL] sys_read (pid %d, fd %d, count %d)\n", getCurrentProcess()->pid, fd, count);
@@ -116,13 +115,12 @@ int sys_read(int fd, char * buf, uint32_t count)
     case 1:
       break;
     case 2:
-      devfs_read((device_node_t *)&tty, (uint8_t *)buf, count);
+      devfs_read(&tty, 0, count, (uint8_t)buf);
       break;
     default:
       break;
   }
-  */
-  return -ENOSYS;
+  return 0;
 }
 
 void sys_open(const char * file, int flags, int mode)

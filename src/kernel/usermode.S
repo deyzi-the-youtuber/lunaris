@@ -4,18 +4,14 @@ section .text
   global usermode_start_init
 
 section .data 
-  file: db "/init", 0
-  argv: db "/init", 0
+  file: db "Hello World from user-mode!", 0
 
 usermode_start_init:
-  ; because we are in usermode, we cant disable, or enable interrupts
-  ; that's all up to the kernel at this point.
-  mov eax, 0x0b ; sys_execve
-  mov ebx, file ; file to execute
-  mov ecx, argv ; unused
-  mov edx, 0x00 ; unused
-  int 0x80 ; pass info to the kernel
-
+  mov eax, 4
+  mov ebx, 1
+  mov ecx, file
+  mov edx, $-file
+  int 0x80
   ret
 
 move_to_usermode:
@@ -40,6 +36,7 @@ move_to_usermode:
   push .usermode
   iretd
 .usermode:
+  call usermode_start_init
   ret
 
 

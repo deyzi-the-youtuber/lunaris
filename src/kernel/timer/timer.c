@@ -30,16 +30,8 @@ void SetFrequencyTimer(uint16_t f)
 void TimerHandler(REGISTERS *regs)
 {
   jiffies++;
-  if (tasking_enabled) // if (!tasking_enabled)
+  if (tasking_enabled)
   {
-  /*
-	  asm volatile("pusha");
-	  EndOfInterruptPIC(32);
-	  asm volatile("popa");
-  }
-  else
-  {
-  */
     EndOfInterruptPIC(32);
     preempt();
   }
@@ -53,6 +45,13 @@ uint32_t get_uptime_seconds()
 uint32_t get_uptime_milliseconds()
 {
   return (uint32_t)jiffies;
+}
+
+void timer_sleep_ms(uint32_t ms)
+{
+	uint32_t wake_time = jiffies + ms;
+	while (jiffies < wake_time)
+		continue;
 }
 
 void InitializeTimer()

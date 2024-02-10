@@ -2,6 +2,7 @@
 <p align=center>The light of the moon</p>
 
 ![image](https://github.com/deyzi-the-youtuber/lunaris/blob/main/assets/kernel1.png)
+![image](https://github.com/deyzi-the-youtuber/lunaris/blob/main/assets/kernel2.png)
 
 **What is Lunaris?**\
 Lunaris is a UNIX-like kernel that is written completely in C.\
@@ -25,6 +26,7 @@ Current features for v0.1 are
 - Multitasking
 - System call support
 - ACPI 2.0 Support
+- ELF support
 
 ## Compiling the Lunaris kernel
 To compile the Lunaris kernel, you need to install the following:
@@ -37,6 +39,12 @@ To compile the Lunaris kernel, you need to install the following:
 After installing, run 'make', and the kernel image will be built.\
 To get kernel symbols working, go into any file of the C source files, make a small change, then revert the change, and recompile. \
 This should allow kernel symbols to be used in the kernel.
+
+## How to run Lunaris
+To emulate Lunaris, run 'make grub' to update the disk with the compiled kernel. After, run 'make qemu'.
+
+## Compiling the user-space binaries
+To compile the user-space binaries, go to /user/libc, and run 'make'.
 
 ## Licensing
 Lunaris is licensed under the GNU General Public License version 2. For more information, see LICENSE.

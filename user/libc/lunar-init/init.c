@@ -2,6 +2,6 @@
 
 int main(int argc, char * argv[])
 {
-  printf("Welcome to Lunaris!\n");
+  printf("Hello! I'm an ELF file! So cool :)\n");
   return argc;
 }

@@ -4,7 +4,7 @@
 #include <common.h>
 #include <cpuid.h>
 
-void arch_get_brand_string(char * brand_string)
+void arch_get_brand_string(char brand_string[])
 {
   memset(brand_string, 0, strlen(brand_string));
   uint32_t regs[12];
@@ -33,14 +33,12 @@ bool InterruptsEnabled(void)
 
 void InterruptsRelease(void)
 {
-  if (InterruptsEnabled() == false)
-    asm("sti");
+  asm volatile("sti");
 }
 
 void InterruptsLock(void)
 {
-  if (InterruptsEnabled() == true)
-    asm("cli");
+  asm volatile("cli");
 }
 
 void IoPortByteWrite(uint16_t Port, uint8_t Value)

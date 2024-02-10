@@ -1,16 +1,17 @@
 section .text
   global usermode_test
   global move_to_usermode
-  global usermode_start_init
+  global usermode_test
 
 section .data 
-  file: db "Hello World from user-mode!", 0
+  arg1: db "/init", 0
+  argv: dd arg1, 0, 0
 
-usermode_start_init:
-  mov eax, 4
-  mov ebx, 1
-  mov ecx, file
-  mov edx, $-file
+usermode_test:
+  mov eax, 11
+  mov ebx, arg1
+  mov ecx, argv
+  mov edx, 0
   int 0x80
   ret
 
@@ -36,7 +37,7 @@ move_to_usermode:
   push .usermode
   iretd
 .usermode:
-  call usermode_start_init
+  call usermode_test
   ret
 
 

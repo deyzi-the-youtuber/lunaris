@@ -23,7 +23,7 @@ static XSDP_t * xsdp_detect()
   /* get extended bios data area pointer */
   uint16_t ebda_pointer = *(uint16_t *)0x040E;
   /* extended bios data area */
-  char * ebda = ((char *) (uintptr_t) ebda_pointer);
+  char * ebda = ((char *)(uintptr_t) ebda_pointer);
   char * pointer = ebda;
   /*
     we need to find the string "RSD PTR " 

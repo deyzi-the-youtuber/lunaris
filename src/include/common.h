@@ -20,12 +20,13 @@ char * itoa(int num, char *str, int radix);
 void ftoa(char * buf, float f);
 void reverse(char *str[], int length);
 int strlen(const char *str);
-void * memset(void * b, int c, int len);
-void memcpy(void * dest, void * src, int n);
-int strcmp(const char *a, const char *b);
+void * memset(void * dest, char val, int count);
+void * memcpy(void * dest, const void * src, int count);
+int strcmp(const char * a, const char * b);
 int indexOf(char c, char *str);
-void substrr(int s, int e, char *src, char *dest);
+void substrr(int s, int e, char * src, char * dest);
 void strcpy(char *src, char *dest);
+void strncpy(char * dest, char * src, int n);
 char *strcat(char *dest, const char *src);
 char * strstr(const char *s1, const char *s2);
 int memcmp(const void * str1, const void * str2, int count);
@@ -34,5 +35,6 @@ char * strchr(char *s, const char c);
 uint32_t rand();
 int strncmp(const char * s1, const char * s2, int n);
 void PANIC(char fmt[], ...);
+int strsplit(char * str, char delim);
 
 #endif

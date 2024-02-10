@@ -159,7 +159,7 @@ int tty_input(tty_dev_t *tp, char ch)
   if (ch == CEOF || ch == '\n')
   {
     eraseq(&tp->can_q);
-    //wakeup((uint32_t)tp);
+    //wakeup(p);
     return 0;
   }
   return 0;

@@ -48,8 +48,6 @@ typedef struct
 	uint32_t p_align;
 } elf_program_header_t;
 
-bool elf_is_valid(uint8_t * data);
-void elf_get_info(elf_header_t * elf_header);
-uint8_t elf_load_file(uint8_t * data);
+int elf_is_valid(uint8_t * buffer);
 
 #endif

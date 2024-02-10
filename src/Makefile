@@ -66,7 +66,10 @@ kernel/printk.o \
 kernel/panic.o \
 fs/ext2/ext2.o \
 drivers/video/gop.o \
-drivers/sound/pcspk.o
+drivers/sound/pcspk.o \
+lib/strsplit.o \
+lib/strncpy.o \
+drivers/firmware/smbios.o
 
 %.o: %.c
 	@gcc $(CC_FLAGS) -o $@ -lc -c $<
@@ -92,10 +95,10 @@ grub:
 	@qemu-img convert -f raw -O vpc disk.img disk.vhd
 
 qemu:
-	@qemu-system-x86_64 -m 2G -drive format=raw,file=disk.img -serial stdio -cpu core2duo -vga std -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0
+	@qemu-system-x86_64 -m 2G -drive format=raw,file=disk.img -serial stdio -cpu core2duo -vga std -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0 -smbios type=2
 
 debugger:
-	@qemu-system-x86_64 -kernel $(OBJOUT) -m 1G -d int -drive format=raw,file=disk.img -serial stdio -cpu core2duo -vga std -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0
+	@qemu-system-x86_64 -kernel $(OBJOUT) -m 1G -d int -drive format=raw,file=disk.img -serial stdio -cpu core2duo -vga std -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0 -smbios type=2
 
 vbox:
 	@VBoxManage modifyvm "Lunaris" --acpi on --ioapic on --longmode on --graphicscontroller vboxvga

@@ -1,10 +1,11 @@
 #include <stdint.h>
 #include <common.h>
+#include <kernel/fs/vfs.h>
 
 #ifndef __EXT2_H
 #define __EXT2_H
 
-#define EXT2_SIGNATURE 0x53EF
+#define EXT2_SIGNATURE 0xEF53
 
 typedef struct ext2_superblock
 {
@@ -126,7 +127,9 @@ void ext2_read_superblock(int part);
 uint32_t ext2_block_to_sector(uint32_t block);
 uint8_t * ext2_read_block(uint32_t block, uint8_t * buf);
 uint8_t * ext2_block_allocate();
-uint8_t * ext2_block_free(uint8_t * block);
+void ext2_block_free(uint8_t * block);
+ext2_inode * ext2_inode_allocate();
+void ext2_inode_free(ext2_inode * inode);
 uint32_t ext2_get_block_group_inode(uint32_t inode);
 uint32_t ext2_get_index_inode(uint32_t inode);
 uint32_t ext2_get_block_inode(uint32_t inode);
@@ -134,6 +137,8 @@ void ext2_read_inode(uint32_t inode, ext2_inode * buf);
 void ext2_list_dir(ext2_directory * dir);
 int ext2_read_dir(uint32_t inode);
 void ext2_inode2vfs_node(ext2_inode * inode, vfs_node_t * node);
-
+uint32_t ext2_find_file(char * fn, uint32_t dir_inode, ext2_inode * inode);
+int ext2_get_file(char * fn, vfs_node_t * node);
+int ext2_read(vfs_node_t * file, uint8_t * buf);
 
 #endif

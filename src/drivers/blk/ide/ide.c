@@ -14,21 +14,22 @@ void prepareDisk(int disk, int address)
 {
 	IoPortByteWrite(0x1F1,0x00);
 	IoPortByteWrite(0x1F2,0x01);
-	IoPortByteWrite(0x1F3,(uint8_t)address);
-	IoPortByteWrite(0x1F4,(uint8_t)(address >> 8));
-	IoPortByteWrite(0x1F5,(uint8_t)(address >> 16));
-	IoPortByteWrite(0x1F6,0xE0 | (disk << 4) | ((address >> 24) & 0x0F));
-	IoPortByteWrite(0x1F7,0x20);
-	while (!(IoPortByteRead(0x1F7) & 0x08)) {}
+	IoPortByteWrite(0x1F3, (uint8_t)address);
+	IoPortByteWrite(0x1F4, (uint8_t)(address >> 8));
+	IoPortByteWrite(0x1F5, (uint8_t)(address >> 16));
+	IoPortByteWrite(0x1F6, 0xE0 | (disk << 4) | ((address >> 24) & 0x0F));
+	IoPortByteWrite(0x1F7, 0x20);
+	while (!(IoPortByteRead(0x1F7) & 0x08));
 }
 
 void readSector(int disk, int address, uint8_t *sect)
 {
 	prepareDisk(disk, address);
-	for(int i = 0; i < 256; i++){
+	for(int i = 0; i < 256; i++)
+	{
 		uint16_t tmp = IoPortWordRead(0x1F0);
-		sect[i*2] = (uint8_t)tmp;
-		sect[i*2+1] = (uint8_t)(tmp >> 8);
+		sect[i * 2] = (uint8_t)tmp;
+		sect[i * 2 + 1] = (uint8_t)(tmp >> 8);
 	}
 }
 
@@ -64,11 +65,13 @@ void readSectors(int disk, int address, int sectors, uint8_t *sect)
 
 int getFirstPartition(int disk)
 {
-	prepareDisk(disk,0);
+	prepareDisk(disk, 0);
 	uint16_t pos = 0;
-	for(int i = 0; i < 256; i++){
+	for(int i = 0; i < 256; i++)
+	{
 		uint16_t tmpword = IoPortWordRead(0x1F0);
-		if(i == 227){
+		if(i == 227)
+		{
 			pos = tmpword;
 		}
 	}

@@ -10,6 +10,7 @@
 #include <kernel/sys/utsname.h>
 #include <kernel/errno.h>
 #include <kernel/fs/devfs.h>
+#include <kernel/fs/ext2.h>
 #include <kernel/mm/paging.h>
 #include <common.h>
 #include <kernel/elf.h>
@@ -93,7 +94,7 @@ int sys_write(int fd, char * buf, uint32_t count)
     case 1:
       char * str = (char *)malloc(count + 1);
       memcpy(str, buf, count);
-      devfs_write(&tty, 0, strlen(str), str);
+      devfs_write((uint32_t)&tty, strlen(str), (uint8_t *)str);
       free(str);
       break;
     case 2:
@@ -115,7 +116,7 @@ int sys_read(int fd, char * buf, uint32_t count)
     case 1:
       break;
     case 2:
-      devfs_read(&tty, 0, count, (uint8_t)buf);
+      devfs_read((uint32_t)&tty, count, (uint8_t *)buf);
       break;
     default:
       break;
@@ -130,7 +131,27 @@ void sys_open(const char * file, int flags, int mode)
 
 int sys_execve(const char * path, const char * argv[], const char * envp[])
 {
-  return -ENOSYS;
+  DebugOutput("[SYSCALL] sys_execve (pid %d, path %s)\n", getCurrentProcess()->pid, path);
+  vfs_node_t * node;
+  if (!ext2_get_file((char *)path, node))
+  {
+    DebugOutput("[EXECVE] %s: not found\n", path);
+    return -ENOENT;
+  }
+  uint8_t * program_buffer;
+  ext2_read(node, program_buffer);
+  if (!elf_is_valid(program_buffer))
+  {
+    return -ENOEXEC;
+  }
+  int argc = 0;
+  /* sizeof(argv) / sizeof(argv[0]) does not work for some odd reason */
+  for(int i = 0; argv[i] != NULL; i++)
+  {
+    argc++;
+  }
+  elf_execute(path, program_buffer, argc, (char **)&argv);
+  return 1;
 }
 
 static void SyscallHandler(REGISTERS * regs)

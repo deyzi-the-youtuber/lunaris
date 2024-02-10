@@ -3,12 +3,11 @@
 
 #include <common.h>
 
-void arch_get_vendor_string(char * vendor_string);
 void InterruptsRelease(void);
 void InterruptsLock(void);
 bool InterruptsEnabled(void);
 extern uint32_t dump_eip();
 extern bool check_cpuid();
-void arch_get_brand_string(char * brand_string);
+void arch_get_brand_string(char brand_string[]);
 
 #endif

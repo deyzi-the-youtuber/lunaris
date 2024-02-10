@@ -29,11 +29,16 @@ MultibootHeader:
 MultibootHeaderEnd:
 
 kernel_load:
+  ; set stack
   mov esp, StackTop
+  ; set flags
   push dword 0
   popf
+  ; push info
   push ebx
   push eax
+  ; call kernel main
+  cli
   call KernelMain
 
 SystemHalt:

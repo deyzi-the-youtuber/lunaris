@@ -6,8 +6,8 @@
 
 typedef struct vfs_node vfs_node_t;
 
-typedef uint32_t (*fs_read)(uint32_t, uint32_t, uint32_t, uint8_t *);
-typedef uint32_t (*fs_write)(uint32_t, uint32_t, uint32_t, uint8_t *);
+typedef uint32_t (*fs_read)(uint32_t, uint32_t, uint8_t *);
+typedef uint32_t (*fs_write)(uint32_t, uint32_t, uint8_t *);
 typedef void (*fs_open)(struct vfs_node *, uint8_t read, uint8_t write);
 typedef void (*fs_close)(struct vfs_node *);
 
@@ -25,8 +25,6 @@ typedef struct vfs_node
 	fs_write write;
 	fs_open open;
 	fs_close close;
-	//readdir_type_t readdir;
-	//finddir_type_t finddir;
 	struct fs_node * ptr;
 }vfs_node_t;
 

@@ -1,12 +1,9 @@
 #include <common.h>
 
-void memcpy(void * dest, void * src, int n)
+void * memcpy(void * dest, const void * src, int count)
 {
-  // Typecast src and dest addresses to (char *)
-  char * csrc = (char *)src;
-  char * cdest = (char *)dest;
-
-  // Copy contents of src[] to dest[]
-  for (int i = 0; i < n; i++)
-    cdest[i] = csrc[i];
+  const char * sp = (const char *)src;
+  char * dp = (char *)dest;
+  for(; count != 0; count--) *dp++ = *sp++;
+  return dest;
 }

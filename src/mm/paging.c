@@ -14,8 +14,6 @@
 #define PAGE_WRITE 0x2
 #define PAGE_USER 0x4
 
-#define HIGHER_HALF 0xC0100000
-
 __attribute__((aligned(PAGE_SIZE))) uint32_t page_directory[1024];
 __attribute__((aligned(PAGE_SIZE))) uint32_t exec_page_table[1024];
 static uint32_t page_dir_loc;
@@ -87,14 +85,4 @@ void InitializePaging()
 	MapVirtualToPhys(0x400000, 0x400000);
 	RegisterInterrupt(14, &PageFaultHandler);
 	LoadPageDirectory((uint32_t *)page_dir_loc);
-}
-
-void exec(uint8_t * prog)
-{
-	exec_page_table[0] = ((uint32_t)&prog[0]-HIGHER_HALF) | 0x3;
-	page_directory[0] = ((uint32_t)&exec_page_table[0]-HIGHER_HALF) | 0x3;
-	LoadPageDirectory((uint32_t *)((uint32_t)&page_directory[0]-HIGHER_HALF));
-	((void(*)())0)();
-	exec_page_table[0] = 0x83;
-	LoadPageDirectory((uint32_t *)((uint32_t)&page_directory[0]-HIGHER_HALF));
 }

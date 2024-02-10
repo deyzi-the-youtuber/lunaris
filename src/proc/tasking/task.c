@@ -43,7 +43,7 @@ pid_t get_free_pid()
 	return -1;
 }
 
-Process *createProcess(char *name, uint32_t addr)
+Process * createProcess(char *name, uint32_t addr, int argc, char * argv[])
 {
 	if (__cpid__ >= CONFIG_MAX_TASKS)
 	{
@@ -63,8 +63,11 @@ Process *createProcess(char *name, uint32_t addr)
 	asm volatile("mov %%cr3, %%eax" : "=a"(p->cr3));
 	uint32_t * stack = (uint32_t *)(p->esp + 4096);
 	p->stack = p->esp;
-
-	*--stack = (uint32_t)&task_exit; // used to get return code of processes
+	*--stack = argc;
+	for(int i = argc; i >= 0; i--)
+	{
+		*--stack = (uint32_t)argv[i];
+	}
 	*--stack = 0x202;					// eflags
 	*--stack = 0x8;						// cs
 	*--stack = addr;					// eip
@@ -124,17 +127,17 @@ void preempt_now()
 
 void wakeup(Process * p)
 {
+	DebugOutput("[TASKING] Waking up PID %d\n", p->pid);
 	InterruptsLock();
-  if (p == NULL) return;
-  if (p->state != PROCESS_ZOMBIE)
-    p->state = PROCESS_ALIVE;
+	if (p->state == PROCESS_SLEEP)
+  	p->state = PROCESS_ALIVE;
 	InterruptsRelease();
 }
 
 void sleep(Process * p)
 {
+	DebugOutput("[TASKING] Putting PID %d to sleep\n", p->pid);
 	InterruptsLock();
-  if (p == NULL) return;
   p->state = PROCESS_SLEEP;
 	InterruptsRelease();
   preempt_now();
@@ -156,7 +159,7 @@ void __kill__()
 	}
 	else
 	{
-		PANIC("attempted to kill kernel");
+		PANIC("attempted to kill kernel\n");
 		for(;;);
 	}
 }
@@ -194,7 +197,7 @@ void __notify__(uint32_t sig)
 void initTasking()
 {
 	DebugOutput("[TASKING] Max amount of tasks: %d\n", CONFIG_MAX_TASKS);
-	KernelProcess = createProcess("lunaridle", (uint32_t)kthread);
+	KernelProcess = createProcess("lunaridle", (uint32_t)kthread, 0, 0);
 	KernelProcess->next = KernelProcess;
 	KernelProcess->prev = KernelProcess;
 	CurrentProcess = KernelProcess;
@@ -227,14 +230,17 @@ int is_pid_running(pid_t pid)
 {
 	Process * p = KernelProcess;
 	Process * orig = KernelProcess;
-	int ret = 0;
 	while(1)
 	{
-		if(p->pid == pid)  { ret = 1; break; }
+		if(p->pid == pid)
+		{
+			return 1;
+		}
 		p = p->next;
-		if(p == orig) break;
+		if(p == orig) 
+			break;
 	}
-	return ret;
+	return 0;
 }
 
 void kill(Process * p)

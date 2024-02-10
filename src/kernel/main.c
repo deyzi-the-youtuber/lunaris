@@ -29,6 +29,7 @@
 #include <kernel/fs/ext2.h>
 #include <kernel/fs/devfs.h>
 #include <kernel/sound/pcspk.h>
+#include <kernel/firmware/smbios.h>
 
 struct multiboot_header_tag * tag;
 
@@ -38,10 +39,24 @@ pid_t pid;
 SysInfo kinfo;
 char * VendorString;
 extern void syscall_test();
+uintptr_t _mbi_addr;
 
-static char * get_cmdline(struct multiboot_tag_string * tag)
+static char * get_cmdline(struct multiboot_tag_string * tag, uintptr_t address)
 {
-  return (char *)tag->string;
+  tag = (struct multiboot_header_tag *)(address + 8);
+  while(tag->type != MULTIBOOT_TAG_TYPE_END)
+  {
+    switch (tag->type)
+    {
+      case MULTIBOOT_TAG_TYPE_CMDLINE:
+        return (char *)tag->string;
+        break;
+    
+      default:
+        break;
+    }
+    tag = (struct multiboot_header_tag *) ((multiboot_uint8_t *) tag + ((tag->size + 7) & ~7));
+  }
 }
 
 static void register_devices(void)
@@ -62,45 +77,32 @@ static void register_devices(void)
   devfs_create_device(VFS_CHARACTER_DEVICE, true, false, "ttyS0", SerialRead, SerialWrite, DEVFS_ROOT_DIR);
 }
 
+static int is_usb_boot()
+{
+  uint8_t sect[512];
+  readSector(0, 0, sect);
+  return sect[1] == 0xff;
+}
+
 static void bss_init()
 {
   memset(&bss_start, 0, &bss_end - &bss_end);
 }
 
-void KernelMain(uint32_t magic, uint32_t address)
+void KernelMain(uint32_t magic, uintptr_t address)
 {
+  _mbi_addr = address;
   VideoClearVGA();
   bss_init();
   uint32_t kernel_size = kernel_base - kernel_end;
   /* Multiboot check */
-  if (magic != MULTIBOOT2_BOOTLOADER_MAGIC)
+  if (magic != MULTIBOOT2_BOOTLOADER_MAGIC || address & 7)
   {
     return;
   }
 
   uint32_t mbi_size = *(uint32_t *)address;
-  tag = (struct multiboot_header_tag *)(address + 8);
-
-  const char * cmdline;
-
-  while(tag->type != MULTIBOOT_TAG_TYPE_END)
-  {
-    switch (tag->type)
-    {
-      case MULTIBOOT_TAG_TYPE_CMDLINE:
-        cmdline = get_cmdline((struct multiboot_tag_string *)tag);
-        break;
-
-      case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
-        //uefi_gop_init((struct multiboot_tag_framebuffer_common *)tag);
-        break;
-    
-      default:
-        break;
-    }
-    tag = (struct multiboot_header_tag *) ((multiboot_uint8_t *) tag + ((tag->size + 7) & ~7));
-  }
-
+  char * cmdline = get_cmdline(tag, address);
   printk("%s version %s-%s (%s version %s)\n", UTSNAME_SYSNAME, UTSNAME_RELEASE, UTSNAME_MACHINE, __CONFIG_COMPILER__, __CONFIG_COMPILER_VERSION__);
   printk("kernel: cmdline: %s\n", cmdline);
   parse_cmdline(cmdline, &kinfo);
@@ -113,7 +115,7 @@ void KernelMain(uint32_t magic, uint32_t address)
   else
   {
     printk("cpu: cpuid is supported\n");
-    char * brand;
+    char brand[255];
     arch_get_brand_string(brand);
     printk("cpu: %s\n", brand);
   }
@@ -123,11 +125,19 @@ void KernelMain(uint32_t magic, uint32_t address)
 
 void KernelMainStage2()
 {
+  smbios_init();
 #ifdef CONFIG_ACPI
   //acpi_init();
 #endif
+  if (!is_usb_boot())
+  {
+    printk("ata: drive has %d partitions\n", get_num_partitions(0));
+  }
+  else
+  {
+    printk("kernel was booted from USB or other unknown device\n");
+  }
   devfs_init(true, true);
-  printk("ata: drive has %d partitions\n", get_num_partitions(0));
   int fp = getFirstPartition(0);
   int mount = ext2_mount(fp);
   if (mount < 0)
@@ -141,9 +151,8 @@ void KernelMainStage2()
   SetKernelStack(getCurrentProcess()->stack + 0x100000);
   /* at this point, we are ready for user mode. switch to it */
   DebugOutput("[KERNEL] Kernel is switching to user-mode. Goodbye kernel-mode!\n");
-  pc_speaker_beep(500);
-  timer_sleep_ms(100);
-  pc_speaker_stop();
+  printk("executing /init\n");
+  /* switch to user mode and execute a program */
   move_to_usermode();
   for(;;);
 }

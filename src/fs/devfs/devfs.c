@@ -117,7 +117,7 @@ bool devfs_read_dir(device_node_t * node, void * buffer, uint32_t count)
       if (strcmp(device_list[i].name, "/") != 0)
       {
         //DebugOutput("[DEVFS] Found a child %s!\n", device_list[i].node_type == VFS_DIRECTORY ? "directory" : "file");
-        devfs_write((uint32_t)&ttydev, 0, strlen(strcat(device_list[i].name, " ")), strcat(device_list[i].name, " "));
+        devfs_write((uint32_t)&ttydev, strlen(strcat(device_list[i].name, " ")), strcat(device_list[i].name, " "));
       }
     }
   }
@@ -293,26 +293,7 @@ device_node_t * devfs_open(const char * pathname, int flags, int mode)
   return node;
 }
 
-int devfs_init(bool read, bool write)
-{
-  vfs_node_t * devfs_root = (vfs_node_t *)malloc(sizeof(vfs_node_t));
-  if (!devfs_root) return -ENOMEM;
-  printk("devfs: init\n");
-  DebugOutput("[DEVFS] Initializing...\n");
-  devfs_root->read = devfs_read;
-  /* Allocate memory for the device list */
-  device_list = (device_node_t *)malloc(DEVFS_DEVICES_MAX * sizeof(device_node_t));
-  memset((uint8_t *)device_list, 0, sizeof(device_node_t));
-  if (!read && !write)
-  {
-    return -EINVAL;
-  }
-  /* create root node */
-  devfs_create_device(VFS_DIRECTORY, read, write, "/", NULL, NULL, "");
-  return 0;
-}
-
-uint32_t devfs_read(uint32_t node, uint32_t offset, uint32_t count, uint8_t * buffer)
+uint32_t devfs_read(uint32_t node, uint32_t count, uint8_t * buffer)
 {
   device_node_t * device = (device_node_t *)node;
   DebugOutput("[DEVFS] Reading device \"%s\"...\n", device->name);
@@ -340,7 +321,7 @@ uint32_t devfs_read(uint32_t node, uint32_t offset, uint32_t count, uint8_t * bu
   return 0;
 }
 
-uint32_t devfs_write(uint32_t node, uint32_t offset, uint32_t count, uint8_t * buffer)
+uint32_t devfs_write(uint32_t node, uint32_t count, uint8_t * buffer)
 {
   device_node_t * device = (device_node_t *)node;
   /* check permissions */
@@ -366,6 +347,25 @@ uint32_t devfs_write(uint32_t node, uint32_t offset, uint32_t count, uint8_t * b
     return -ENODEV;
   }
   device->devfs_write(buffer, count);
+  return 0;
+}
+
+int devfs_init(bool read, bool write)
+{
+  vfs_node_t * devfs_root = (vfs_node_t *)malloc(sizeof(vfs_node_t));
+  if (!devfs_root) return -ENOMEM;
+  printk("devfs: init\n");
+  DebugOutput("[DEVFS] Initializing...\n");
+  devfs_root->read = devfs_read;
+  /* Allocate memory for the device list */
+  device_list = (device_node_t *)malloc(DEVFS_DEVICES_MAX * sizeof(device_node_t));
+  memset((uint8_t *)device_list, 0, sizeof(device_node_t));
+  if (!read && !write)
+  {
+    return -EINVAL;
+  }
+  /* create root node */
+  devfs_create_device(VFS_DIRECTORY, read, write, "/", NULL, NULL, "");
   return 0;
 }
 

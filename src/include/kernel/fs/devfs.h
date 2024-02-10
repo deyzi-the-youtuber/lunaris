@@ -45,9 +45,9 @@ device_node_t devfs_get_device_node(int node_id);
 /* converts a node to a device */
 devfs_device_t devfs_node2dev(device_node_t * node);
 /* reads a device if device has read permissions */
-uint32_t devfs_read(uint32_t node, uint32_t offset, uint32_t count, uint8_t * buffer);
+uint32_t devfs_read(uint32_t node, uint32_t count, uint8_t * buffer);
 /* writes a device if device has write permissions */
-uint32_t devfs_write(uint32_t node, uint32_t offset, uint32_t count, uint8_t * buffer);
+uint32_t devfs_write(uint32_t node, uint32_t count, uint8_t * buffer);
 /* converts a path into a node */
 device_node_t * devfs_path2node(char * name);
 device_node_t * devfs_open(const char * pathname, int flags, int mode);

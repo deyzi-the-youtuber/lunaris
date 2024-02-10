@@ -4,7 +4,7 @@
 #ifndef __TASK_H
 #define __TASK_H
 
-#define START(name, addr) addProcess(createProcess(name, (uint32_t)addr));
+#define START(name, addr) addProcess(createProcess(name, (uint32_t)addr, 0, 0));
 #define WAIT_FOR_PID(pid) while(is_pid_running(pid));
 
 #define PROCESS_ALIVE 1
@@ -22,13 +22,14 @@
 static uint32_t MAX_OPEN_FILES = 16;
 
 typedef struct _Process{
-	char *name;
+	char * name;
 	uint32_t pid;
 	uint32_t esp;
 	uint32_t stack;
 	uint32_t eip;
 	uint32_t cr3;
 	uint32_t state;
+	char ** argv;
 	void (*notify)(uint32_t);
 	bool NotExecuted;
 	struct _Process *next, *prev;
@@ -44,7 +45,7 @@ void __init__();
 void preempt_now();
 void __kill__();
 void __notify__(uint32_t sig);
-Process *createProcess(char *name,  uint32_t loc);
+Process * createProcess(char * name, uint32_t addr, int argc, char * argv[]);
 Process *getProcess(uint32_t pid);
 void preempt();
 void notify(uint32_t sig);

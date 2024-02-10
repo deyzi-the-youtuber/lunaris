@@ -1,16 +1,9 @@
 #include <stdint.h>
 #include <common.h>
 
-void * memset(void * b, int c, int len)
+void * memset(void * dest, char val, int count)
 {
-  int i;
-  uint8_t * p = b;
-  i = 0;
-  while (len > 0)
-  {
-    *p = c;
-    p++;
-    len--;
-  }
-  return (b);
+  char * temp = (char *)dest;
+  for( ; count != 0; count--) *temp++ = val;
+  return dest;
 }

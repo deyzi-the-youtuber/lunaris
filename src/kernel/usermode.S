@@ -1,18 +1,22 @@
 section .text
-  global usermode_test
   global move_to_usermode
-  global usermode_test
+  global start_init
 
 section .data 
   arg1: db "/init", 0
-  argv: dd arg1, 0, 0
+  argv: dd arg1, 0
 
-usermode_test:
+start_init:
+  push ebp
+  mov ebp, esp
+
   mov eax, 11
   mov ebx, arg1
   mov ecx, argv
   mov edx, 0
   int 0x80
+
+  pop ebp
   ret
 
 move_to_usermode:
@@ -37,7 +41,7 @@ move_to_usermode:
   push .usermode
   iretd
 .usermode:
-  call usermode_test
+  call start_init
   ret
 
 

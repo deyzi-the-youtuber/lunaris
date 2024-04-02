@@ -1,6 +1,5 @@
-#include <kernel/sys/serial.h>
-#include <kernel/video/vga.h>
-#include <kernel/task.h>
+#include <lunaris/serial.h>
+#include <lunaris/task.h>
 #include <common.h>
 #include <stdarg.h>
 
@@ -70,20 +69,5 @@ void DebugOutput(const char * string, ...)
       }
     }
     string++;
-  }
-}
-
-void InitializeDebugIO(void)
-{
-  DebugOutput("[INFO] You can now type in the debug console :)\n");
-  char c[2];
-  while (1)
-  {
-    c[0] = (char)SerialRead();
-    c[1] = '\0';
-    if (c[0] != 13)
-      DebugOutput("%s", c);
-    else
-      DebugOutput("\n\r");
   }
 }

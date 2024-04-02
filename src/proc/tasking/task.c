@@ -1,19 +1,21 @@
-#include <kernel/cpu.h>
-#include <kernel/task.h>
-#include <kernel/mm/malloc.h>
-#include <kernel/mm/paging.h>
-#include <kernel/syscall.h>
-#include <kernel/signal.h>
-#include <kernel/debug.h>
-#include <kernel/tss.h>
-#include <kernel/config.h>
+#include <lunaris/cpu.h>
+#include <lunaris/task.h>
+#include <lunaris/mm.h>
+#include <lunaris/syscall.h>
+#include <lunaris/signal.h>
+#include <lunaris/debug.h>
+#include <lunaris/tss.h>
+#include <lunaris/config.h>
 #include <system.h>
 #include <common.h>
 #include <stdint.h>
-#include <kernel/printk.h>
+#include <lunaris/module.h>
+#include <sys/types.h>
 
-Process *CurrentProcess;
-Process *KernelProcess;
+MODULE("scheduler");
+
+Process * CurrentProcess;
+Process * KernelProcess;
 uint32_t __cpid__ = 0;
 bool tasking_enabled = false;
 
@@ -43,9 +45,9 @@ pid_t get_free_pid()
 	return -1;
 }
 
-Process * createProcess(char *name, uint32_t addr, int argc, char * argv[])
+Process * createProcess(char * name, uint32_t addr)
 {
-	if (__cpid__ >= CONFIG_MAX_TASKS)
+	if (__cpid__ >= CONFIG_NPROC)
 	{
 		DebugOutput("[TASKING] Max amount of tasks has been reached!\n");
 		return NULL;
@@ -57,33 +59,105 @@ Process * createProcess(char *name, uint32_t addr, int argc, char * argv[])
 	p->pid = get_free_pid();
 	p->state = PROCESS_ALIVE;
 	p->notify = __notify__;
-	p->eip = addr;
-	p->esp = (uint32_t)malloc(4096);
-	p->NotExecuted = true;
-	asm volatile("mov %%cr3, %%eax" : "=a"(p->cr3));
-	uint32_t * stack = (uint32_t *)(p->esp + 4096);
-	p->stack = p->esp;
+	p->not_ready = true;
+	// now time for the register stuff :)
+	p->context.eax = 0;
+	p->context.ebx = 0;
+	p->context.ecx = 0;
+	p->context.edx = 0;
+	p->context.esp = (uint32_t)malloc(PAGE_SIZE);
+	p->context.ebp = p->context.esp;
+	p->context.esi = 0;
+	p->context.edi = 0;
+	p->context.eip = (uint32_t)addr;
+	p->context.eflags = 0x00000202;
+
+	p->context.cs = 0x0008;
+	p->context.ds = 0x0010;
+	p->context.fs = 0x0010;
+	p->context.es = 0x0010;
+	p->context.gs = 0x0010;
+
+
+	asm volatile("mov %%cr3, %%eax" : "=a"(p->context.cr3));
+	uint32_t * stack = (uint32_t *)(p->context.esp + PAGE_SIZE);
+	p->stack = p->context.esp;
+	*--stack = (uint32_t)p->context.eflags;					// eflags
+	*--stack = (uint32_t)p->context.cs;						// cs
+	*--stack = (uint32_t)p->context.eip;					// eip
+	*--stack = (uint32_t)p->context.eax;							// eax
+	*--stack = (uint32_t)p->context.ebx;							// ebx
+	*--stack = (uint32_t)p->context.ecx;							// ecx;
+	*--stack = (uint32_t)p->context.edx;							// edx
+	*--stack = (uint32_t)p->context.esi;							// esi
+	*--stack = (uint32_t)p->context.edi;							// edi
+	*--stack = (uint32_t)p->context.ebp; // ebp
+	*--stack = (uint32_t)p->context.ds;					// ds
+	*--stack = (uint32_t)p->context.fs;					// fs
+	*--stack = (uint32_t)p->context.es;					// es
+	*--stack = (uint32_t)p->context.gs;					// gs
+	p->context.esp = (uint32_t)stack;
+	DebugOutput("[TASKING] \"%s\" created with PID %d\n", p->name, p->pid);
+	return p;
+}
+
+Process * createUserProcess(char * name, uint32_t addr, int argc, char * argv[])
+{
+	if (__cpid__ >= CONFIG_NPROC)
+	{
+		DebugOutput("[TASKING] Max amount of tasks has been reached!\n");
+		return NULL;
+	}
+	Process * p = (Process *)malloc(sizeof(Process));
+	memset(p, 0, sizeof(Process)); // make sure everything's clean
+
+	p->name = name;
+	p->pid = get_free_pid();
+	p->state = PROCESS_ALIVE;
+	p->notify = __notify__;
+	p->not_ready = true;
+	// now time for the register stuff :)
+	p->context.eax = 0;
+	p->context.ebx = 0;
+	p->context.ecx = 0;
+	p->context.edx = 0;
+	p->context.esp = (uint32_t)malloc(PAGE_SIZE);
+	p->context.ebp = p->context.esp;
+	p->context.esi = 0;
+	p->context.edi = 0;
+	p->context.eip = (uint32_t)addr;
+	p->context.eflags = 0x00000202;
+
+	p->context.cs = 0x0018;
+	p->context.ds = 0x0020;
+	p->context.fs = 0x0020;
+	p->context.es = 0x0020;
+	p->context.gs = 0x0020;
+
+
+	asm volatile("mov %%cr3, %%eax" : "=a"(p->context.cr3));
+	uint32_t * stack = (uint32_t *)(p->context.esp + PAGE_SIZE);
+	p->stack = p->context.esp;
 	*--stack = argc;
-	for(int i = argc; i >= 0; i--)
+	for(int i = argc; i == 0; i--)
 	{
 		*--stack = (uint32_t)argv[i];
 	}
-	*--stack = 0x202;					// eflags
-	*--stack = 0x8;						// cs
-	*--stack = addr;					// eip
-	*--stack = 0;							// eax
-	*--stack = 0;							// ebx
-	*--stack = 0;							// ecx;
-	*--stack = 0;							// edx
-	*--stack = 0;							// esi
-	*--stack = 0;							// edi
-	*--stack = p->esp + 4096; // ebp
-	*--stack = 0x10;					// ds
-	*--stack = 0x10;					// fs
-	*--stack = 0x10;					// es
-	*--stack = 0x10;					// gs
-
-	p->esp = (uint32_t)stack;
+	*--stack = (uint32_t)p->context.eflags;				// eflags
+	*--stack = (uint32_t)p->context.cs;						// cs
+	*--stack = (uint32_t)p->context.eip;					// eip
+	*--stack = (uint32_t)p->context.eax;					// eax
+	*--stack = (uint32_t)p->context.ebx;				  // ebx
+	*--stack = (uint32_t)p->context.ecx;					// ecx;
+	*--stack = (uint32_t)p->context.edx;					// edx
+	*--stack = (uint32_t)p->context.esi;					// esi
+	*--stack = (uint32_t)p->context.edi;					// edi
+	*--stack = (uint32_t)p->context.ebp;          // ebp
+	*--stack = (uint32_t)p->context.ds;					  // ds
+	*--stack = (uint32_t)p->context.fs;					  // fs
+	*--stack = (uint32_t)p->context.es;					  // es
+	*--stack = (uint32_t)p->context.gs;					  // gs
+	p->context.esp = (uint32_t)stack;
 	DebugOutput("[TASKING] \"%s\" created with PID %d\n", p->name, p->pid);
 	return p;
 }
@@ -102,8 +176,8 @@ Process * getProcess(pid_t pid)
 
 void reload_context()
 {
-	CurrentProcess->NotExecuted = false;
-	asm volatile("mov %%eax, %%esp" : : "a"(CurrentProcess->esp));
+	CurrentProcess->not_ready = false;
+	asm volatile("mov %%eax, %%esp" :: "a"(CurrentProcess->context.esp));
 	asm volatile("pop %gs");
 	asm volatile("pop %fs");
 	asm volatile("pop %es");
@@ -115,32 +189,39 @@ void reload_context()
 	asm volatile("pop %ecx");
 	asm volatile("pop %ebx");
 	asm volatile("pop %eax");
-	asm volatile("iret"); // FIX: Causes a general protection fault exception
+	asm volatile("iret");
 }
 
 void preempt_now()
 {
 	if (!tasking_enabled)
 		return;
-	asm volatile("int $0x81");
+	//asm volatile("int $0x81");
+  preempt();
 }
 
 void wakeup(Process * p)
 {
-	DebugOutput("[TASKING] Waking up PID %d\n", p->pid);
-	InterruptsLock();
-	if (p->state == PROCESS_SLEEP)
+	if (p->pid > 1)
+	{
+		InterruptsLock();
+		DebugOutput("[TASKING] Waking up PID %d\n", p->pid);
   	p->state = PROCESS_ALIVE;
-	InterruptsRelease();
+		InterruptsRelease();
+	}
 }
 
 void sleep(Process * p)
 {
-	DebugOutput("[TASKING] Putting PID %d to sleep\n", p->pid);
-	InterruptsLock();
-  p->state = PROCESS_SLEEP;
-	InterruptsRelease();
-  preempt_now();
+	if (p->pid > 1)
+	{
+		InterruptsLock();
+		DebugOutput("[TASKING] Putting PID %d to sleep\n", p->pid);
+  	p->state = PROCESS_SLEEP;
+		p->not_ready = true;
+		InterruptsRelease();
+		preempt_now();
+	}
 }
 
 void __kill__()
@@ -164,28 +245,29 @@ void __kill__()
 	}
 }
 
+/*
 static void task_exit()
 {
 	register uint32_t val __asm__ ("eax");
-	printk("PID %d exited with return code %d", getCurrentProcess()->pid, val);
+	printm("PID %d exited with return code %d", getCurrentProcess()->pid, val);
 	__kill__();
 	asm("hlt");
-}
+}*/
 
 void __notify__(uint32_t sig)
 {
 	switch (sig)
 	{
 	case SIGTERM:
-		printk("notifying process with SIGTERM...\n");
+		printm("notifying process with SIGTERM...\n");
 		__kill__();
 		break;
 	case SIGSEGV:
-		printk("notifying process with SIGSEGV...\n");
+		printm("notifying process with SIGSEGV...\n");
 		__kill__();
 		break;
 	case SIGILL:
-		printk("notifying process with SIGILL\n", CurrentProcess->pid);
+		printm("notifying process with SIGILL\n", CurrentProcess->pid);
 		__kill__();
 		break;
 	case SIGINT:
@@ -196,8 +278,8 @@ void __notify__(uint32_t sig)
 
 void initTasking()
 {
-	DebugOutput("[TASKING] Max amount of tasks: %d\n", CONFIG_MAX_TASKS);
-	KernelProcess = createProcess("lunaridle", (uint32_t)kthread, 0, 0);
+	DebugOutput("[TASKING] Max amount of tasks: %d\n", CONFIG_NPROC);
+	KernelProcess = createProcess("lunaridle", (uint32_t)kthread);
 	KernelProcess->next = KernelProcess;
 	KernelProcess->prev = KernelProcess;
 	CurrentProcess = KernelProcess;
@@ -212,7 +294,7 @@ Process * getCurrentProcess()
 
 uint32_t addProcess(Process * p)
 {
-	if (__cpid__ >= CONFIG_MAX_TASKS)
+	if (__cpid__ >= CONFIG_NPROC)
 	{
 		DebugOutput("[TASKING] Max amount of tasks has been reached!\n");
 	}
@@ -262,9 +344,8 @@ void preempt()
 {
 	InterruptsLock();
 	// push CurrentProcess process' registers on to its stack
-	asm volatile("push %eax");
-	asm volatile("push %ebx");
-	asm volatile("push %ecx");
+  asm volatile("push %ebx");
+  asm volatile("push %ecx");
 	asm volatile("push %edx");
 	asm volatile("push %esi");
 	asm volatile("push %edi");
@@ -273,16 +354,26 @@ void preempt()
 	asm volatile("push %es");
 	asm volatile("push %fs");
 	asm volatile("push %gs");
-	asm volatile("mov %%esp, %%eax" : "=a"(CurrentProcess->esp));
+	asm volatile("mov %%esp, %%eax" : "=a"(CurrentProcess->context.esp));
 	CurrentProcess = CurrentProcess->next;
-	if (CurrentProcess->NotExecuted)
+	if (CurrentProcess->not_ready)
 	{
-		reload_context();
-		return;
-	}
+		/*
+			if the process is sleeping, we move on to the next task
+		*/
+		if (CurrentProcess->state != PROCESS_SLEEP)
+		{
+			reload_context();
+			return;
+		}
+		else
+		{
+			CurrentProcess = CurrentProcess->next;
+    }
+  }
 	// pop all of next process' registers off of its stack
-	asm volatile("mov %%eax, %%cr3" : : "a"(CurrentProcess->cr3));
-	asm volatile("mov %%eax, %%esp" : : "a"(CurrentProcess->esp));
+	asm volatile("mov %%eax, %%cr3" :: "a"(CurrentProcess->context.cr3));
+	asm volatile("mov %%eax, %%esp" :: "a"(CurrentProcess->context.esp));
 	asm volatile("pop %gs");
 	asm volatile("pop %fs");
 	asm volatile("pop %es");
@@ -290,9 +381,6 @@ void preempt()
 	asm volatile("pop %ebp");
 	asm volatile("pop %edi");
 	asm volatile("pop %esi");
-	asm volatile("pop %edx");
-	asm volatile("pop %ecx");
 	asm volatile("pop %ebx");
-	asm volatile("pop %eax");
 	InterruptsRelease();
 }

@@ -1,118 +1,59 @@
-CC_FLAGS = -I include -m32 -nostdlib -nostartfiles -g -ffreestanding -std=gnu99 -fno-omit-frame-pointer
-ASM_FLAGS = -f elf32
-LD_FLAGS = -m elf_i386 -nostdlib
+CC_FLAGS = -I include -m32 -nostdlib -nostartfiles -g -ffreestanding -fno-omit-frame-pointer -fstack-protector
+ASM_FLAGS = -f elf32 -g
+LD_FLAGS = -m elf_i386 -nostdlib -znoexecstack
 
 OBJOUT = lunaris
 
-OBJ = arch/x86/boot/grub.o \
-kernel/main.o \
-drivers/video/vga.o \
-lib/itoa.o \
-arch/x86/eip.o \
-arch/x86/cpu.o \
-drivers/serial/serial.o \
-kernel/hal/hal.o \
-drivers/serial/debug.o \
-lib/strlen.o \
-arch/x86/gdt.o \
-arch/x86/gdt_install.o \
-arch/x86/idt.o \
-arch/x86/idt_install.o \
-arch/x86/exceptions.o \
-arch/x86/irq.o \
-arch/x86/isr.o \
-arch/x86/pic.o \
-kernel/timer/timer.o \
-lib/memset.o \
-mm/paging.o \
-lib/ftoa.o \
-arch/x86/fpu.o \
-lib/memcpy.o \
-mm/malloc.o \
-drivers/pci/pci.o \
-arch/x86/tss_install.o \
-proc/tasking/task.o \
-drivers/blk/ide/ide.o \
-lib/strcmp.o \
-lib/indexof.o \
-lib/substrr.o \
-lib/strcat.o \
-lib/strcpy.o \
-proc/syscalls/syscall.o \
-kernel/cmdline.o \
-kernel/trace.o \
-kernel/usermode.o \
-lib/strstr.o \
-lib/memcmp.o \
-lib/strcspn.o \
-lib/strchr.o \
-arch/x86/cpuid.o \
-arch/x86/cmos.o \
-drivers/keyboard/kbd.o \
-lib/rand.o \
-arch/x86/exception.o \
-ipc/signal.o \
-ipc/spinlock.o \
-drivers/tty/tty.o \
-drivers/mbr/mbr.o \
-arch/x86/apic.o \
-kernel/ksyms.o \
-lib/strncmp.o \
-arch/x86/acpi.o \
-mm/page.o \
-kernel/loader/elf.o \
-fs/devfs/devfs.o \
-kernel/printk.o \
-kernel/panic.o \
-fs/ext2/ext2.o \
-drivers/video/gop.o \
-drivers/sound/pcspk.o \
-lib/strsplit.o \
-lib/strncpy.o \
-drivers/firmware/smbios.o
+# Cross compiler prefix
+# This isn't needed for NASM
+export CROSS_COMPILE=
+export ARCH=i386
+
+C_SOURCE := $(shell find . -type f -name "*.c")
+ASM_SOURCE := $(shell find . -type f -name "*.S")
+
+C_OBJECTS := $(patsubst %.c, %.o, $(C_SOURCE))
+ASM_OBJECTS := $(patsubst %.S, %.o, $(ASM_SOURCE))
+
+all: gen_kconfig $(OBJOUT)
 
 %.o: %.c
-	@gcc $(CC_FLAGS) -o $@ -lc -c $<
+	@$(CROSS_COMPILE)gcc $(CC_FLAGS) -o $@ -lc -c $<
 	@echo "CC    " $<
 
 %.o: %.S
 	@nasm $(ASM_FLAGS) -o $@ $<
 	@echo "AS    " $<
 
-$(OBJOUT): link.ld $(OBJ)
+$(OBJOUT): $(ASM_OBJECTS) $(C_OBJECTS)
 	@../tools/gen-ksyms.sh
-	@gcc $(CC_FLAGS) -lc -c symlist.c -o symlist.o
-	@ld $(LD_FLAGS) -T $< -o $@ $(OBJ) symlist.o
-	@nm lunaris -X 32_64 >> kernel.map
+	@$(CROSS_COMPILE)ld $(LD_FLAGS) -T link.ld -o $(OBJOUT).o -r $^
+	@$(CROSS_COMPILE)gcc $(CC_FLAGS) -o symlist.o -lc -c symlist.c
+	@$(CROSS_COMPILE)ld $(LD_FLAGS) -T link.ld -o $(OBJOUT) $(OBJOUT).o symlist.o
+# get symbol map
+	@$(CROSS_COMPILE)nm lunaris >> kernel.map
 	@echo "$@ is ready"
-	@echo "You may need to recompile to get the kernel symbols working"
 
 grub:
 	@../tools/diskedit.sh disk.img -m
 	@sudo cp $(OBJOUT) /mnt/boot/
-	@sudo cp grub.cfg /mnt/boot/grub/
+	@rm -f /mnt/boot/lunaris.old
 	@../tools/diskedit.sh disk.img -u
 	@qemu-img convert -f raw -O vpc disk.img disk.vhd
 
 qemu:
-	@qemu-system-x86_64 -m 2G -drive format=raw,file=disk.img -serial stdio -cpu core2duo -vga std -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0 -smbios type=2
-
+	@qemu-system-$(ARCH) -m 2G -drive format=raw,file=disk.img -serial stdio -vga cirrus -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0 -smbios type=2
+ 
 debugger:
-	@qemu-system-x86_64 -kernel $(OBJOUT) -m 1G -d int -drive format=raw,file=disk.img -serial stdio -cpu core2duo -vga std -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0 -smbios type=2
+	@qemu-system-$(ARCH) -m 2G -d int -drive format=raw,file=disk.img -cpu qemu32 -vga cirrus -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0 -smbios type=2 -no-reboot
 
-vbox:
-	@VBoxManage modifyvm "Lunaris" --acpi on --ioapic on --longmode on --graphicscontroller vboxvga
-	@VirtualBoxVM --startvm "Lunaris"
-
-image:
+iso:
 	@cp lunaris ./isodir/boot/ 
 	@cp grub.cfg ./isodir/boot/grub/ 
 	@grub-mkrescue ./isodir -o lunaris.iso
 
+gen_kconfig:
+	@python ../tools/gen-config.py .config include/lunaris/config.h -v
+
 clean:
-	@rm -f $(OBJ)
-	@rm -f $(OBJOUT)
-	@rm -f lunaris.map
-	@rm -f disk.vhd
-	@rm -f lunaris.iso
-	@rm -f symlist.o
+	@rm -f $(C_OBJECTS) $(ASM_OBJECTS) $(OBJOUT) symlist.c

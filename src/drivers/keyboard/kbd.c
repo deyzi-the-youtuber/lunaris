@@ -1,15 +1,15 @@
-#include <kernel/sys/io.h>
-#include <kernel/kbd.h>
-#include <kernel/isr.h>
-#include <kernel/sys/tty.h>
-#include <kernel/fs/devfs.h>
-#include <kernel/fs/vfs.h>
-#include <kernel/mm/malloc.h>
-#include <kernel/debug.h>
-#include <kernel/task.h>
-#include <kernel/video/vga.h>
+#include <sys/io.h>
+#include <lunaris/kbd.h>
+#include <lunaris/isr.h>
+#include <sys/tty.h>
+#include <fs/devfs.h>
+#include <fs/vfs.h>
+#include <lunaris/mm.h>
+#include <lunaris/debug.h>
+#include <lunaris/task.h>
+#include <lunaris/video.h>
 #include <common.h>
-#include <kernel/printk.h>
+#include <lunaris/printk.h>
 
 static uint32_t mode = 0;
 
@@ -45,7 +45,7 @@ char shift(char sc)
 }
 
 /*
- * Each keyboard interrupt came along with a 8bit scan code (via IoPortByteRead(KEYBOARD_ENCODER)), if bit 8 is
+ * Each keyboard interrupt came along with a 8bit scan code (via inb(KEYBOARD_ENCODER)), if bit 8 is
  * set, it's releasing a key, else pressing.
  * */
 
@@ -56,11 +56,11 @@ void do_keybd_intr(REGISTERS * reg)
   uint8_t * map = keybd_map;
 
   // got no data
-  if ((IoPortByteRead(KEYBOARD_ONBOARD_CONTROLLER) & KB_STAT_DIB) == 0)
+  if ((inb(KEYBOARD_ONBOARD_CONTROLLER) & KB_STAT_DIB) == 0)
   {
     return;
   }
-  sc = IoPortByteRead(KEYBOARD_ENCODER);
+  sc = inb(KEYBOARD_ENCODER);
 
   // ignore capslock yet.
   if ((sc & 0x7f) == 0x3A)
@@ -107,8 +107,7 @@ void do_keybd_intr(REGISTERS * reg)
   if ((sc & 0x80) == 0 && ch != '\0')
   {
     tty_input(&tty[0], ch);
-    VideoUpdateCursorVGA(y * VGA_ROWS + x);
-    scroll();
+    video_remap(video_getx(), video_gety());
   }
   // on released
   else
@@ -130,6 +129,7 @@ void keyboard_init(void)
   /* install keyboard irq */
   printk("kbd: installing irq handler...\n");
   RegisterInterrupt(0x21, do_keybd_intr);
+  
   /* register devfs "input" directory node */
   printk("kbd: registering device...\n");
   devfs_create_device(VFS_DIRECTORY, true, false, "input", NULL, NULL, "/");

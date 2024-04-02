@@ -1,88 +1,101 @@
-#include <kernel/mm/paging.h>
-#include <kernel/video/vga.h>
-#include <kernel/sys/io.h>
-#include <kernel/isr.h>
-#include <kernel/debug.h>
-#include <kernel/task.h>
-#include <kernel/signal.h>
+#include <lunaris/mm.h>
+#include <sys/io.h>
+#include <lunaris/isr.h>
+#include <lunaris/debug.h>
+#include <lunaris/task.h>
+#include <lunaris/signal.h>
 #include <common.h>
-#include <kernel/printk.h>
+#include <lunaris/printk.h>
 
-#define INDEX(virt) virt >> 22
+// 4/1/24: Kernel paging rewrite
+// I feel like the paging code before was super messy.
+// Because of that, I'm gonna make it cleaner.
 
-#define PAGE_PRESENT 0x1
-#define PAGE_WRITE 0x2
-#define PAGE_USER 0x4
+static struct page_directory page_dir[1024] __attribute__((aligned(PAGE_SIZE)));
+static struct page_table page_tables[1024] __attribute__((aligned(PAGE_SIZE)));
 
-__attribute__((aligned(PAGE_SIZE))) uint32_t page_directory[1024];
-__attribute__((aligned(PAGE_SIZE))) uint32_t exec_page_table[1024];
-static uint32_t page_dir_loc;
-static uint32_t *current_directory;
-static uint32_t *last_page;
-
-static void invalidate(int vaddr)
-{
-	asm volatile("invlpg %0" ::"m"(vaddr));
-}
-
-void MapVirtualToPhys(uint32_t virt, uint32_t phys)
-{
-	uint16_t index = INDEX(virt);
-	for (int i = 0; i < 1024; i++)
-	{
-		last_page[i] = phys | PAGE_PRESENT | PAGE_USER | PAGE_WRITE;
-		phys += 4096;
-	}
-	page_directory[index] = ((uint32_t)last_page) | PAGE_PRESENT | PAGE_USER | PAGE_WRITE;
-	last_page = (uint32_t *)(((uint32_t)last_page) + 4096);
-}
-
-void PageFaultHandler(REGISTERS * regs)
-{
-	/* By "core dumped", I dont mean dumped to a file, I mean dumped to the debug console :) */
-	Process * p = getCurrentProcess();
-	printk("%s: segmentation fault at eip 0x%x esp 0x%x error %d\n", p->name, regs->eip, regs->esp, regs->err_code);
-	uint32_t fault;
-	asm volatile("mov %%cr2, %0" : "=r" (fault));
-	DebugOutput("Fault address: 0x%x\n", fault);
-  int present   = !(regs->err_code & 0x1); // Page not present
-  int rw = regs->err_code & 0x2;           // Write operation?
-  int us = regs->err_code & 0x4;           // Processor was in user-mode?
-  int reserved = regs->err_code & 0x8;     // Overwritten CPU-reserved bits of page entry?
-  int id = regs->err_code & 0x10;          // Caused by an instruction fetch?
+static void __page_irq(REGISTERS * regs)
+{  
+  uint32_t cr2;
+  int present = !(regs->err_code & 0x1);
+  int rw = regs->err_code & 0x2;
+  int us = regs->err_code & 0x4;
+  int reserved = regs->err_code & 0x8;
+  int id = regs->err_code & 0x10;
+  DebugOutput("[PAGING] Received page fault! Reason: ");
+  asm volatile("mov %cr2, %eax");
+  asm volatile("mov %%eax, %0" :: "m"(cr2));
 	if (present)
-	{
 		DebugOutput("Page not present\n");
-	}
   if (rw)
-	{
 		DebugOutput("Write operation on a read-only page\n");
-	}
   if (us) 
-	{
 		DebugOutput("User-Mode\n");
-	}
   if (reserved) 
-	{
 		DebugOutput("Reserved\n");
-	}
-	notify(SIGSEGV);
+  DebugOutput("[PAGING] Page fault error: 0x%x\n", cr2);
+  notify(SIGSEGV);
 }
 
-void InitializePaging()
+static void load_page_directory(struct page_directory * pd)
 {
-	page_directory[0] = 0;
-	invalidate(0);
-	page_directory[0] = (uint32_t)0x400000;
-	page_dir_loc = (uint32_t)page_directory;
-	last_page = (uint32_t *)0x404000;
-	for (int i = 0; i < 1024; i += 0x1000)
-	{
-		page_directory[i] = ((uint32_t)last_page) | PAGE_PRESENT | PAGE_USER | PAGE_WRITE;
-	}
-	
-	MapVirtualToPhys(0, 0);
-	MapVirtualToPhys(0x400000, 0x400000);
-	RegisterInterrupt(14, &PageFaultHandler);
-	LoadPageDirectory((uint32_t *)page_dir_loc);
+  uint32_t cr0;
+  asm volatile("mov %0, %%cr3" ::"r"((uint32_t)pd));
+  // set bit in cr0 to enable paging
+  asm volatile("mov %%cr0, %0": "=r"(cr0));
+  cr0 = cr0 | 0x80000001;
+  asm volatile("mov %0, %%cr0" ::"r"(cr0));
+}
+
+void __tlb_flush(void)
+{
+  asm volatile("movl %%cr3, %%eax; movl %%eax, %%cr3" ::: "eax", "memory");
+}
+
+void paging_init(void)
+{
+  int i;
+  memset(page_dir, 0, sizeof(struct page_directory) * 1024);
+  memset(page_tables, 0, sizeof(struct page_table) * 1024);
+  for(i = 0; i < 1024; i++)
+  {
+    page_dir[i].read_write = 1;
+    page_dir[i].user_mode = 1;
+  }
+  for(i = 0; i < 1024; i++)
+  {
+    page_tables[i].present = 1;
+    page_tables[i].read_write = 1;
+    page_tables[i].user_mode = 1;
+    page_tables[i].frame = (i * PAGE_SIZE) >> 12;
+  }
+  page_dir[0].present = 1;
+  page_dir[0].accessed = 0;
+  page_dir[0].user_mode = 1;
+  page_dir[0].frame = ((uint32_t)page_tables >> 12);
+
+  load_page_directory(page_dir);
+  RegisterInterrupt(14, __page_irq);
+}
+
+void paging_map_page(void * physaddr, void * virtualaddr)
+{
+  uint32_t pdindex = (uint32_t)virtualaddr >> 22;
+  uint32_t ptindex = (uint32_t)virtualaddr >> 12 & 0x03FF;
+ 
+  if(!page_dir[pdindex].present)
+  {
+    page_dir[pdindex].present = 1;
+    page_dir[pdindex].read_write = 1;
+    page_dir[pdindex].accessed = 1;
+    page_dir[pdindex].user_mode = 1;
+    page_dir[pdindex].frame = (uintptr_t)physaddr >> 12;
+  }
+
+  if(!page_tables[ptindex].present)
+  {
+    DebugOutput("[PAGING] Warning: page table entry does not exist!\n", ptindex);
+    return;
+  }
+  //__tlb_flush();
 }

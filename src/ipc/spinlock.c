@@ -1,13 +1,7 @@
 #include <stdatomic.h>
-#include <kernel/spinlock.h>
+#include <lunaris/spinlock.h>
 
-spinlock spin_lock_new()
-{
-  spinlock spinlock_new = ATOMIC_FLAG_INIT;
-  return spinlock_new;
-}
-
-void spin_lock_acquire(spinlock * lock)
+void spinlock_acquire(spinlock * lock)
 {
   while( atomic_flag_test_and_set_explicit(lock, memory_order_acquire))
   {
@@ -15,7 +9,7 @@ void spin_lock_acquire(spinlock * lock)
   }
 }
  
-void spin_lock_release(spinlock * lock)
+void spinlock_release(spinlock * lock)
 {
   atomic_flag_clear_explicit(lock, memory_order_release);
 }

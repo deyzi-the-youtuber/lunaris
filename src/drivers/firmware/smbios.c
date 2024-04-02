@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include <common.h>
-#include <kernel/firmware/smbios.h>
-#include <kernel/printk.h>
-#include <kernel/debug.h>
-#include <kernel/errno.h>
+#include <lunaris/firmware/smbios.h>
+#include <lunaris/printk.h>
+#include <lunaris/debug.h>
+#include <errno.h>
 
 smbios_entry * smbios;
 

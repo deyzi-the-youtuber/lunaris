@@ -1,5 +1,5 @@
-#include <kernel/blk/mbr.h>
-#include <kernel/blk/ide.h>
+#include <lunaris/blk/mbr.h>
+#include <lunaris/blk/ide.h>
 
 #define MBR_MAX 4
 

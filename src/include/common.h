@@ -1,14 +1,13 @@
-#include <kernel/video/vga.h>
-#include <kernel/trace.h>
-#include <kernel/cpu.h>
 #include <stdint.h>
+#include <stdarg.h>
+#include <sys/types.h>
 
 #ifndef __COMMON_H
 #define __COMMON_H
 
 #define NULL ((void *)0)
-#define MAJOR(num) ((uint8_t)((num>>8)&0xFF))
-#define MINOR(num) ((uint8_t)((num)&0xFF))
+#define MAJOR(num) ((uint8_t)((num >> 8) & 0xFF))
+#define MINOR(num) ((uint8_t)((num) & 0xFF))
 
 typedef enum
 {
@@ -36,5 +35,8 @@ uint32_t rand();
 int strncmp(const char * s1, const char * s2, int n);
 void PANIC(char fmt[], ...);
 int strsplit(char * str, char delim);
+char * strtok(char * str, const char * delimiters);
+
+size_t vsprintf(const char fmt[], va_list arg);
 
 #endif

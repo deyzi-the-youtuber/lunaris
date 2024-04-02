@@ -1,31 +1,29 @@
-#include <kernel/sys/io.h>
-#include <kernel/sys/serial.h>
-#include <kernel/video/vga.h>
-#include <kernel/debug.h>
-#include <kernel/gdt.h>
-#include <kernel/idt.h>
-#include <kernel/timer.h>
+#include <sys/io.h>
+#include <lunaris/serial.h>
+#include <lunaris/video.h>
+#include <lunaris/debug.h>
+#include <lunaris/gdt.h>
+#include <lunaris/idt.h>
+#include <lunaris/timer.h>
 #include <common.h>
 #include <multiboot.h>
 #include <system.h>
-#include <kernel/mm/paging.h>
-#include <kernel/pci.h>
-#include <kernel/mm/malloc.h>
-#include <kernel/tss.h>
-#include <kernel/task.h>
-#include <kernel/sched.h>
-#include <kernel/blk/ide.h>
-#include <kernel/syscall.h>
-#include <kernel/cpu.h>
-#include <kernel/bios32.h>
+#include <lunaris/pci.h>
+#include <lunaris/mm.h>
+#include <lunaris/tss.h>
+#include <lunaris/task.h>
+#include <lunaris/sched.h>
+#include <lunaris/blk/ide.h>
+#include <lunaris/syscall.h>
+#include <lunaris/cpu.h>
 #include <system.h>
-#include <kernel/printk.h>
+#include <lunaris/printk.h>
 
 //extern MULTIBOOT_INFO * mbi;
 
 void init_mem()
 {
-  InitializePaging();
+  paging_init();
   InitializeMemoryManagement(&kernel_end);
 }
 

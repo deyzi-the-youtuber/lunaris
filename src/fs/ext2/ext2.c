@@ -1,13 +1,12 @@
-#include <kernel/fs/vfs.h>
-#include <kernel/fs/ext2.h>
+#include <fs/vfs.h>
+#include <fs/ext2.h>
 #include <stdint.h>
-#include <kernel/mm/malloc.h>
-#include <kernel/blk/ide.h>
-#include <kernel/printk.h>
-#include <kernel/debug.h>
-#include <kernel/errno.h>
+#include <lunaris/mm.h>
+#include <lunaris/blk/ide.h>
+#include <lunaris/printk.h>
+#include <lunaris/debug.h>
+#include <errno.h>
 
-vfs_node_t * ext2_root;
 uint8_t buffer[512];
 ext2_superblock * sb;
 ext2_block_group_descriptor * bgd;
@@ -217,41 +216,46 @@ void ext2_read_dlink(uint32_t block, uint8_t * buf){
 	ext2_block_free(bbuf);
 }
 
-int ext2_read(vfs_node_t * file, uint8_t * buf) {
-    if (!file->inode) return 0;
-    
-    ext2_inode * inode = ext2_inode_allocate();
-    ext2_read_inode(file->inode, inode);
+int ext2_read(vfs_node_t * file, uint8_t * buf)
+{
+  if (!file->inode)
+    return 0;
 
-    // Calculate the total number of blocks required to read
-    uint32_t total_blocks = (inode->size_lower + sb->block_size - 1) / sb->block_size;
-    uint32_t blocks_read = 0;
+  ext2_inode * inode = ext2_inode_allocate();
+  ext2_read_inode(file->inode, inode);
 
-    for (int i = 0; i < 12 && blocks_read < total_blocks; i++) {
-        uint32_t block = inode->block_pointers[i];
-        if (block == 0 || block > sb->total_blocks) break;
-        
-        ext2_read_block(block, buf + blocks_read * sb->block_size);
-        blocks_read++;
-    }
+  // Calculate the total number of blocks required to read
+  uint32_t total_blocks = (inode->size_lower + sb->block_size - 1) / sb->block_size;
+  uint32_t blocks_read = 0;
 
-    // Handle indirect blocks
-    if (inode->s_pointer && blocks_read < total_blocks) {
-        ext2_read_slink(inode->s_pointer, buf + blocks_read * sb->block_size);
-        blocks_read += sb->block_size / sizeof(uint32_t);
-    }
-    if (inode->d_pointer && blocks_read < total_blocks) {
-        ext2_read_dlink(inode->d_pointer, buf + blocks_read * sb->block_size);
-        blocks_read += (sb->block_size / sizeof(uint32_t)) * (sb->block_size / sizeof(uint32_t));
-    }
-
-    free(inode);
-    return 1;
+  for (int i = 0; i < 12 && blocks_read < total_blocks; i++) {
+    uint32_t block = inode->block_pointers[i];
+    if (block == 0 || block > sb->total_blocks)
+      break;
+    ext2_read_block(block, buf + blocks_read * sb->block_size);
+    blocks_read++;
+  }
+  // Handle indirect blocks
+  if (inode->s_pointer && blocks_read < total_blocks)
+  {
+    ext2_read_slink(inode->s_pointer, buf + blocks_read * sb->block_size);
+    blocks_read += sb->block_size / sizeof(uint32_t);
+  }
+  if (inode->d_pointer && blocks_read < total_blocks)
+  {
+    ext2_read_dlink(inode->d_pointer, buf + blocks_read * sb->block_size);
+    blocks_read += (sb->block_size / sizeof(uint32_t)) * (sb->block_size / sizeof(uint32_t));
+  }
+  free(inode);
+  return 1;
 }
 
 int ext2_mount(int partition_start)
 {
-  ext2_root = (vfs_node_t *)malloc(sizeof(vfs_node_t));
+  vfs_node_t * ext2_root = (vfs_node_t *)malloc(sizeof(vfs_node_t));
+  memset(ext2_root, 0, sizeof(vfs_node_t));
+  if (!ext2_root) return -ENOMEM;
+  strcpy(ext2_root->name, "EXT2-FS");
   DebugOutput("[EXT2] Initializing...\n");
   ext2_start = partition_start;
   printk("ext2: mounting filesystem...\n");
@@ -271,6 +275,7 @@ int ext2_mount(int partition_start)
     sb->first_inode = 11;
     sb->inode_size = 128;
   }
+  vfs_register_filesystem(ext2_root);
   return 0;
 }
 

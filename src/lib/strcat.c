@@ -1,5 +1,5 @@
 #include <common.h>
-#include <kernel/mm/malloc.h>
+#include <lunaris/mm.h>
 
 char * strcat(char * dest, const char * src)
 {

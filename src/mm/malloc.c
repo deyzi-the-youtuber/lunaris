@@ -1,12 +1,11 @@
-#include <kernel/mm/paging.h>
-#include <kernel/mm/malloc.h>
-#include <kernel/debug.h>
-#include <kernel/errno.h>
+#include <lunaris/mm.h>
+#include <lunaris/debug.h>
+#include <errno.h>
 #include <stdint.h>
 #include <common.h>
-#include <kernel/cpu.h>
+#include <lunaris/cpu.h>
 #include <system.h>
-#include <kernel/printk.h>
+#include <lunaris/printk.h>
 
 #define MAX_PAGE_ALIGNED_ALLOCS 32
 

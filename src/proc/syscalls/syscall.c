@@ -1,27 +1,35 @@
 #include <stdint.h>
-#include <kernel/isr.h>
-#include <kernel/fs/vfs.h>
-#include <kernel/syscall.h>
-#include <kernel/cpu.h>
-#include <kernel/task.h>
-#include <kernel/mm/malloc.h>
-#include <kernel/debug.h>
+#include <lunaris/isr.h>
+#include <fs/vfs.h>
+#include <lunaris/syscall.h>
+#include <lunaris/cpu.h>
+#include <lunaris/task.h>
+#include <lunaris/mm.h>
+#include <lunaris/debug.h>
 #include <limits.h>
-#include <kernel/sys/utsname.h>
-#include <kernel/errno.h>
-#include <kernel/fs/devfs.h>
-#include <kernel/fs/ext2.h>
-#include <kernel/mm/paging.h>
+#include <sys/utsname.h>
+#include <errno.h>
+#include <fs/devfs.h>
+#include <fs/ext2.h>
 #include <common.h>
-#include <kernel/elf.h>
+#include <lunaris/elf.h>
+#include <sys/types.h>
+#include <lunaris/module.h>
+
+MODULE("syscall")
 
 #define SYSCALL_MAX 32
+
+static void _trace_return(uint32_t result)
+{
+#ifdef CONFIG_KERNEL_TRACE
+  DebugOutput("[KTRACE] PID %d ---- return: %d\n", getCurrentProcess()->pid, result);
+#endif
+}
 
 void sys_exit(int error_code)
 {
   DebugOutput("[SYSCALL] sys_exit (pid %d, error code %d)\n", getCurrentProcess()->pid, error_code);
-  /* First, get the current process */
-  Process * this = getCurrentProcess();
   __kill__();
 }
 
@@ -34,9 +42,9 @@ int sys_fork()
   Process * parent = getCurrentProcess();
   Process * child = (Process *)malloc(sizeof(Process));
   child->pid =  parent->pid + 1;
-  child->esp = child->stack = 0;
-  child->eip = 0;
-  asm volatile("mov %%cr3, %%eax" : "=a"(child->cr3));
+  child->context.esp = child->stack = 0;
+  child->context.eip = 0;
+  asm volatile("mov %%cr3, %%eax" : "=a"(child->context.cr3));
   child->next = 0;
   uint32_t eip = dump_eip();
   if (getCurrentProcess() == parent)
@@ -44,9 +52,9 @@ int sys_fork()
     uint32_t esp, ebp;
     asm volatile("mov %%esp, %0" : "=r"(esp));
     asm volatile("mov %%ebp, %0" : "=r"(ebp));
-    child->esp = esp;
-    child->eip = eip;
-    child->stack = ebp;
+    child->context.esp = esp;
+    child->context.eip = eip;
+    child->stack = esp;
     DebugOutput("[SYS_FORK] Forked new process with PID %d\n", child->pid);
     return child->pid;
   }
@@ -60,7 +68,7 @@ int sys_uname(struct utsname * uname)
 {
   struct utsname dummy;
   DebugOutput("[SYSCALL] sys_uname (pid %d)\n", getCurrentProcess()->pid);
-  if (uname == NULL)
+  if (!uname)
   {
     DebugOutput("[SYS_UNAME] Error: did not give utsname structure!\n");
     return -1;
@@ -75,19 +83,15 @@ int sys_uname(struct utsname * uname)
 
 pid_t sys_getpid()
 {
-  /* 
-    Get the current running process and get its PID
-    It will always be the one doing the syscall.
-  */
-  DebugOutput("[SYSCALL] sys_getpid (pid %d)\n", getCurrentProcess()->pid);
-  return getCurrentProcess()->pid;
+  pid_t pid = getCurrentProcess()->pid;
+  DebugOutput("[SYSCALL] get_pid (pid %d)\n", pid);
+  return pid;
 }
 
-int sys_write(int fd, char * buf, uint32_t count)
+void sys_write(int fd, char * buf, uint32_t count)
 {
   device_node_t tty;
   tty = devfs_get_device_node(devfs_get_device_byname("tty0"));
-  DebugOutput("[SYSCALL] sys_write (pid %d, fd %d, count %d)\n", getCurrentProcess()->pid, fd, count);
   CHECK_FD(fd);
   switch (fd)
   {
@@ -102,7 +106,6 @@ int sys_write(int fd, char * buf, uint32_t count)
     default:
       break;
   }
-  return 0;
 }
 
 int sys_read(int fd, char * buf, uint32_t count)
@@ -110,23 +113,80 @@ int sys_read(int fd, char * buf, uint32_t count)
   device_node_t tty;
   tty = devfs_get_device_node(devfs_get_device_byname("tty0"));
   DebugOutput("[SYSCALL] sys_read (pid %d, fd %d, count %d)\n", getCurrentProcess()->pid, fd, count);
-  CHECK_FD(fd);
   switch (fd)
   {
     case 1:
       break;
     case 2:
       devfs_read((uint32_t)&tty, count, (uint8_t *)buf);
+      return strlen(buf);
       break;
     default:
+      /* file descriptor handling logic */
       break;
   }
   return 0;
 }
 
-void sys_open(const char * file, int flags, int mode)
+static int is_ext2(char file[])
 {
-  
+  int i = 0;
+  char * token = strtok((char *)file, "/");
+  while (token)
+  {
+    /* checks if directory / file is absolute or relative */
+    if (strcmp(token, "dev") == 0 && (i == 0 || i == 1))
+    {
+      return 0;
+      break;
+    }
+    token = strtok(NULL, "/");
+    i++;
+  }
+  return 1;
+}
+
+int sys_open(const char * file, int flags, uint16_t mode)
+{
+  char fn[255];
+  int fd;
+  strcpy(fn, (char *)file);
+  DebugOutput("[SYSCALL] sys_open (pid %d, flags 0x%x, mode 0x%x)\n", getCurrentProcess()->pid, flags, mode);
+  DebugOutput("[SYS_OPEN] %s\n", file);
+  bool is_ext2_prefix = is_ext2(fn);
+  vfs_node_t * file_node;
+  if (is_ext2_prefix)
+  {
+    ext2_get_file((char *)file, file_node);
+    if ((int)file_node == -ENOENT)
+    {
+      DebugOutput("[SYS_OPEN] %s: no such file or directory\n", file);
+      return -1;
+    }
+    if (file_node->flags & VFS_DIRECTORY)
+    {
+      DebugOutput("[SYS_OPEN] %s: is a directory\n", file);
+      return -1;
+    }
+    fd = find_fd(file_node);
+  }
+  else
+  {
+    int i = 0;
+    char * token = strtok((char *)file, "/");
+    while (token != NULL)
+    {
+      if (strcmp(token, "dev") != 0 && (i > 0 || i > 1))
+      {
+        break;
+      }
+      token = strtok(NULL, "/");
+      i++;
+    }
+    fd = find_fd(0);
+  }
+  DebugOutput("[SYS_OPEN] %s: file descriptor: %d\n", file, fd);
+  return fd + 2;
 }
 
 int sys_execve(const char * path, const char * argv[], const char * envp[])
@@ -156,38 +216,40 @@ int sys_execve(const char * path, const char * argv[], const char * envp[])
 
 static void SyscallHandler(REGISTERS * regs)
 {
-  InterruptsLock();
+  int r = 0;
   switch (regs->eax)
   {
     case SYSEXIT:
       sys_exit((int)regs->ebx);
       break;
     case SYSFORK:
-      sys_fork();
+      r = sys_fork();
       break;
     case GETPID:
-      sys_getpid();
+      r = sys_getpid();
       break;
     case SYSREAD:
-      sys_read((int)regs->ebx, (char *)regs->ecx, regs->edx);
+      r = sys_read((int)regs->ebx, (char *)regs->ecx, regs->edx);
       break;
     case SYSWRITE:
       sys_write((int)regs->ebx, (char *)regs->ecx, regs->edx);
       break;
     case SYSOPEN:
+      r = sys_open((const char *)regs->ebx, (int)regs->ecx, (uint16_t)regs->edx);
       break;
     case 0x0b:
-      sys_execve((const char *)regs->ebx, (const char **)regs->ecx, (const char **)regs->edx);
+      r = sys_execve((const char *)regs->ebx, (const char **)regs->ecx, (const char **)regs->edx);
       break;
     default:
-      DebugOutput("[SYSCALL] Unknown syscall received\n");
-      DebugOutput("[SYSCALL] EAX: 0x%x\n", regs->eax);
+      printm("received unknown or unimplemented syscall %d\n", regs->eax);
+      DebugOutput("[SYSCALL] Unimplemented syscall 0x%x\n", regs->eax);
+      r = -ENOSYS;
       break;
   }
-  InterruptsRelease();
+  _trace_return(r);
 }
 
 void EnableSystemCalls()
 {
-  RegisterInterrupt(0x80, SyscallHandler);
+  RegisterInterrupt(0x80, (uintptr_t)SyscallHandler);
 }

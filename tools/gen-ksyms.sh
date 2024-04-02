@@ -10,12 +10,12 @@ if [ -z "$OBJDUMP" ]; then
     OBJDUMP=objdump
 fi
 
-${OBJDUMP} -t lunaris | sed '/\bd\b/d' | sort > "$TMP1"
+${OBJDUMP} -t lunaris.o | sed '/\bd\b/d' | sort > "$TMP1"
 grep "\.text" < "$TMP1" | cut -d' ' -f1 > "$TMP2"
 grep "\.text" < "$TMP1" | awk 'NF{ print $NF }' > "$TMP3"
 
 cat <<EOF >symlist.c
-#include <kernel/ksyms.h>
+#include <lunaris/ksyms.h>
 
 ksyms_t symlist[] = {
 EOF

@@ -1,27 +1,16 @@
-#include <kernel/elf.h>
-#include <kernel/debug.h>
-#include <kernel/mm/malloc.h>
-#include <kernel/mm/paging.h>
-#include <kernel/task.h>
+#include <lunaris/elf.h>
+#include <lunaris/debug.h>
+#include <lunaris/mm.h>
+#include <lunaris/task.h>
 #include <stdint.h>
 #include <common.h>
-
-uint32_t load_addr = 0x400000;
 
 /* work in progress */
 
 int elf_is_valid(uint8_t * buffer)
 {
-  DebugOutput("[ELF] Searching for signature...\n");
 	elf_header_t * header = (elf_header_t *)buffer;
-	if(header->e_ident[0] == 0x7f && header->e_ident[1] == 'E' && header->e_ident[2] == 'L' && header->e_ident[3] == 'F')
-	{
-		/* ELF file is valid */
-		DebugOutput("[ELF] Signature is valid!\n");
-		return 1;
-	}
-	DebugOutput("[ELF] Invalid signature!\n");
-	return 0;
+	return (header->e_ident[0] == 0x7f && header->e_ident[1] == 'E' && header->e_ident[2] == 'L' && header->e_ident[3] == 'F');
 }
 
 static void elf_print_info(elf_header_t * header)
@@ -36,18 +25,12 @@ static void elf_print_info(elf_header_t * header)
 	DebugOutput(" [+] Entry point: 0x%x\n", header->e_entry);
 }
 
-uint32_t elf_get_unused_load_addr()
-{
-	load_addr += 0x400000;
-	return load_addr;
-}
-
 void elf_execute(char * name, uint8_t * file, int argc, char * argv[])
 {
+  uint32_t load_addr;
 	elf_header_t * hdr = (elf_header_t *)file;
 	elf_print_info(hdr);
 	elf_program_header_t * prghdr = (elf_program_header_t *)(file + hdr->e_phoff);
-	uint32_t load_location;
 	for(int i = 0; i < hdr->e_phnum; i++, prghdr++)
 	{
 		switch (prghdr->p_type)
@@ -56,12 +39,12 @@ void elf_execute(char * name, uint8_t * file, int argc, char * argv[])
 			case 1:
 				DebugOutput("[ELF] Program header:\n");
 				DebugOutput(" [+] Load offest: 0x%x\n", prghdr->p_offset);
-				load_location = file + prghdr->p_offset;
-				break;
+        load_addr = (uint32_t)(file + prghdr->p_offset);
+        break;
 			default:
 				break;
 		}
 	}
-	DebugOutput("[ELF] Loading file at 0x%x\n", load_location + hdr->e_entry);
-	addProcess(createProcess(name, load_location + hdr->e_entry, argc, argv));
+  DebugOutput("[ELF] Executing ELF file...\n");
+	addProcess(createProcess(name, load_addr + hdr->e_entry));
 }

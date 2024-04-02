@@ -1,20 +1,42 @@
 #include <common.h>
-#include <kernel/debug.h>
-#include <kernel/video/vga.h>
-#include <kernel/mm/malloc.h>
+#include <lunaris/debug.h>
+#include <lunaris/video.h>
+#include <lunaris/mm.h>
+#include <multiboot.h>
+#include <lunaris/errno.h>
+#include <stdint.h>
 #include <system.h>
 
 #define CMDLINE_MAX_ENTRIES 3
 
 static const char * CmdlineEntries[CMDLINE_MAX_ENTRIES] = {"root=", "quiet", "debug"};
 
-int parse_cmdline(const char * cmdline, SysInfo * sys)
+char * get_cmdline(struct multiboot_header_tag * tag, uintptr_t address)
 {
-  DebugOutput("[CMDLINE] %s\n", cmdline);
-  SysInfo dummy;
+  tag = (struct multiboot_header_tag *)(address + 8);
+  while(tag->type != MULTIBOOT_TAG_TYPE_END)
+  {
+    switch (tag->type)
+    {
+      case MULTIBOOT_TAG_TYPE_CMDLINE:
+        struct multiboot_tag_string * tag_str = (struct multiboot_tag_string *)tag;
+        return (char *)(tag_str->string);
+        break;
+    
+      default:
+        break;
+    }
+    tag = (struct multiboot_header_tag *) ((multiboot_uint8_t *) tag + ((tag->size + 7) & ~7));
+  }
+}
 
-  if (cmdline == NULL || sys == NULL)
-    return 1;
+int parse_cmdline(const char * cmdline)
+{
+  if(!cmdline)
+  {
+    return -EINVAL;
+  }
+  DebugOutput("[CMDLINE] %s\n", cmdline);
 
   // The length of possible entries in the kernel command line
   int len = sizeof(CmdlineEntries) / sizeof(CmdlineEntries[0]);
@@ -38,18 +60,17 @@ int parse_cmdline(const char * cmdline, SysInfo * sys)
           int paramLen = valueEnd - valueStart;
           if (paramLen >= 256)
             paramLen = 256 - 1;
-          memcpy(sys->RootPath, (char *)valueStart, paramLen);
-          sys->RootPath[paramLen] = '\0';
-          DebugOutput("[CMDLINE] Root drive: %s\n", sys->RootPath);
+          DebugOutput("[CMDLINE] Root: %s\n", valueStart);
           break;
         }
         case 1:
-          sys->quiet = 1;
+          // quiet
           break;
         case 2:
-          sys->debugInfo = 1;
+          // debug
           break;
         default:
+          // unknown
           break;
       }
     }

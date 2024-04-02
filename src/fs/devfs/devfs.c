@@ -1,13 +1,14 @@
-#include <kernel/fs/vfs.h>
-#include <kernel/fs/devfs.h>
-#include <kernel/mm/malloc.h>
-#include <kernel/errno.h>
-#include <kernel/task.h>
-#include <kernel/debug.h>
-#include <kernel/fcntl.h>
+#include <fs/vfs.h>
+#include <fs/devfs.h>
+#include <lunaris/mm.h>
+#include <errno.h>
+#include <lunaris/task.h>
+#include <lunaris/debug.h>
+#include <lunaris/fcntl.h>
 #include <common.h>
 #include <stdint.h>
-#include <kernel/printk.h>
+#include <lunaris/printk.h>
+#include <lunaris/video.h>
 
 /* my very simple devfs implementation */
 
@@ -104,15 +105,6 @@ bool devfs_read_dir(device_node_t * node, void * buffer, uint32_t count)
     //DebugOutput("[DEVFS] parent node info: %s | %s\n", parent->name, node->name);
     if (memcmp(parent->name, node->name, strlen(node->name)) == 0)
     {
-      switch(device_list[i].node_type)
-      {
-        case VFS_DIRECTORY:
-          VideoSetColor(VGA_LAVENDER);
-          break;
-        default:
-          VideoSetColor(VGA_LGREEN);
-          break;
-      }
       /* dont show the root node */
       if (strcmp(device_list[i].name, "/") != 0)
       {
@@ -121,8 +113,7 @@ bool devfs_read_dir(device_node_t * node, void * buffer, uint32_t count)
       }
     }
   }
-  VideoSetColor(VGA_DEFAULT);
-  VideoOutputCharVGA('\n');
+  video_putc('\n');
   return 0;
 }
 
@@ -354,6 +345,7 @@ int devfs_init(bool read, bool write)
 {
   vfs_node_t * devfs_root = (vfs_node_t *)malloc(sizeof(vfs_node_t));
   if (!devfs_root) return -ENOMEM;
+  strcpy(devfs_root->name, "DEV-FS");
   printk("devfs: init\n");
   DebugOutput("[DEVFS] Initializing...\n");
   devfs_root->read = devfs_read;
@@ -366,6 +358,7 @@ int devfs_init(bool read, bool write)
   }
   /* create root node */
   devfs_create_device(VFS_DIRECTORY, read, write, "/", NULL, NULL, "");
+  vfs_register_filesystem(devfs_root);
   return 0;
 }
 

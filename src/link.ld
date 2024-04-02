@@ -2,60 +2,32 @@ ENTRY(kernel_load)
 
 SECTIONS
 {
-    . = 0xC0000000;
-    kernel_base = .;
-    /* text section */
-    .text 0x0100000 : {
-        __kernel_text_section_start = .;
-        . = ALIGN(4);
-        /* set multiboot header */
-        LONG(0x1BADB002)
-        LONG(0x00000003)
-        LONG(0xE4524FFB)
-        code = .; _code = .; __code = .;
-        *(.text)
-        *(.rodata)
-        . = ALIGN(4096);
-        __kernel_text_section_end = .;
-    }
-
-    /* initialized data section */
-    .data : {
-        __kernel_data_section_start = .;
-        data = .; _data = .; __data = .;
-        *(.data)
-        . = ALIGN(4096);
-        __kernel_data_section_end = .;
-    }
-
-    /* constant data section */
-    .rodata : {
-        __kernel_rodata_section_start = .;
-        *(.rodata)
-        __kernel_rodata_section_end = .;
-    }
-
-    /* un-initialized data section */
-    .bss : {
-        bss_start = .;
-        bss = .; _bss = .; __bss = .;
-        *(.bss)
-        . = ALIGN(4096);
-        bss_end = .;
-    }
-
-    /DISCARD/ : {
-		*(.note.gnu.property)
-		*(.comment)
-		*(.eh_frame)
+	. = 1M;
+	kernel_base = .;
+	.text BLOCK(4K) : ALIGN(4K)
+	{
+		*(.text)
 	}
-
-    .symtab : {
-        ksyms_start = .;
-        *(.symtab)
-        ksyms_end = .;
-    }
-
-    end = .; _end = .; __end = .;
-    kernel_end = .;
+ 
+	/* Read-only data. */
+	.rodata BLOCK(4K) : ALIGN(4K)
+	{
+		*(.rodata)
+	}
+ 
+	/* Read-write data (initialized) */
+	.data BLOCK(4K) : ALIGN(4K)
+	{
+		*(.data)
+	}
+ 
+	/* Read-write data (uninitialized) and stack */
+	.bss BLOCK(4K) : ALIGN(4K)
+	{
+		bss_start = .;
+		*(COMMON)
+		*(.bss)
+		bss_end = .;
+	}
+	kernel_end = .;
 }

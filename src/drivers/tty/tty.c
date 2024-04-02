@@ -1,13 +1,16 @@
 #include <stdint.h>
-#include <kernel/task.h>
-#include <kernel/sys/tty.h>
-#include <kernel/debug.h>
-#include <kernel/errno.h>
-#include <kernel/signal.h>
-#include <kernel/fs/devfs.h>
-#include <kernel/video/vga.h>
+#include <lunaris/task.h>
+#include <sys/tty.h>
+#include <lunaris/debug.h>
+#include <errno.h>
+#include <lunaris/signal.h>
+#include <fs/devfs.h>
+#include <lunaris/video.h>
 #include <common.h>
-#include <kernel/printk.h>
+#include <lunaris/printk.h>
+#include <lunaris/spinlock.h>
+
+DEFINE_SPINLOCK(tty_spinlock);
 
 tty_dev_t tty[NTTY];
 
@@ -89,10 +92,11 @@ int tty_canon(tty_dev_t *tp)
       return 0;
       break;
     case CERASE:
-      eraseq(&tp->can_q);
-      x--;
-      VideoOutputCharVGA('\0');
-      x--;
+      if (eraseq(&tp->can_q) == -1)
+        break;
+      video_get_driver()->x--;
+      video_putc('\0');
+      video_get_driver()->x--;
       break;
     default:
       putq(&tp->can_q, ch);
@@ -114,7 +118,7 @@ int tty_output(tty_dev_t *tp, char ch)
     for (i = 0; i < 4 - (tp->col % 4); i++)
       putq(&tp->out_q, ' ');
     break;
-  case 10:
+  case '\n':
     putq(&tp->out_q, '\n');
     break;
   default:
@@ -159,7 +163,7 @@ int tty_input(tty_dev_t *tp, char ch)
   if (ch == CEOF || ch == '\n')
   {
     eraseq(&tp->can_q);
-    //wakeup(p);
+    wakeup(getCurrentProcess()->next);
     return 0;
   }
   return 0;
@@ -193,7 +197,7 @@ int tty_open(uint16_t dev)
   }
   tp = &tty[MINOR(dev)];
   tp->t_flag = TTY_ECHO;
-  tp->putc = &VideoOutputCharVGA;
+  tp->putc = &video_putc;
   tp->raw_q.q_count = 0;
   tp->can_q.q_count = 0;
   tp->out_q.q_count = 0;
@@ -234,6 +238,7 @@ int tty_read(uint16_t dev, char *buf, uint32_t cnt)
     if ((ch = getq(&tp->can_q)) < 0)
       break;
     buf[i] = ch;
+    video_remap(video_getx(), video_gety());
   }
   return i + 1;
 }
@@ -253,25 +258,29 @@ int tty_write(uint16_t dev, char *buf, uint32_t cnt)
     tty_output(tp, buf[i]);
   }
   tty_start(tp);
-  VideoUpdateCursorVGA(y * VGA_ROWS + x);
+  video_remap(video_getx(), video_gety());
   return 0;
 }
 
 void dev_tty_read(uint8_t * buffer, uint32_t count)
 {
-  tty_read(0, buffer, count);
+  spinlock_acquire(&tty_spinlock);
+  tty_read(0, (char *)buffer, count);
+  spinlock_release(&tty_spinlock);
 }
 
 void dev_tty_write(uint8_t * buffer, uint32_t count)
 {
-  tty_write(0, buffer, count);
+  spinlock_acquire(&tty_spinlock);
+  tty_write(0, (char *)buffer, count);
+  spinlock_release(&tty_spinlock);
 }
 
 void tty_init()
 {
   printk("tty: init\n");
   tty[0].t_flag = TTY_ECHO;
-  tty[0].putc = &VideoOutputCharVGA;
+  tty[0].putc = &video_putc;
   tty[0].raw_q.q_count = 0;
   tty[0].can_q.q_count = 0;
   tty[0].out_q.q_count = 0;
